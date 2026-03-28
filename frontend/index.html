@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SIGNAL · Chat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,300&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d0f;
+      --surface: #141416;
+      --surface2: #1c1c1f;
+      --border: rgba(255,255,255,0.07);
+      --accent: #c8f04c;
+      --accent-dim: rgba(200, 240, 76, 0.12);
+      --text: #f0efe8;
+      --muted: #6b6b72;
+      --self-bg: rgba(200,240,76,0.13);
+      --other-bg: #1e1e22;
+      --radius: 14px;
+      --mono: 'Space Mono', monospace;
+      --sans: 'DM Sans', sans-serif;
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 999;
+      opacity: 0.6;
+    }
+
+    .glow {
+      position: fixed;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(200,240,76,0.055) 0%, transparent 70%);
+      top: -200px; right: -200px;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .app {
+      width: 420px;
+      max-height: 92dvh;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03);
+      animation: slideUp 0.5s cubic-bezier(0.22,1,0.36,1) both;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(24px) scale(0.98); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .header {
+      padding: 18px 22px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .wordmark {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+      font-family: var(--mono);
+      letter-spacing: 0.06em;
+    }
+
+    .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.4s;
+    }
+
+    .dot.online { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+    .panel {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .panel.active { display: flex; }
+
+    .auth-panel {
+      padding: 28px 24px 24px;
+      gap: 0;
+    }
+
+    .tab-bar {
+      display: flex;
+      border-radius: 10px;
+      background: var(--surface2);
+      padding: 4px;
+      margin-bottom: 28px;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 9px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 0.25s;
+      letter-spacing: 0.02em;
+    }
+
+    .tab.active {
+      background: var(--bg);
+      color: var(--text);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    }
+
+    .auth-form { display: flex; flex-direction: column; gap: 12px; }
+
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 11px;
+      font-family: var(--mono);
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      font-family: var(--sans);
+      font-size: 14px;
+      font-weight: 300;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 12px 14px;
+      border-radius: 10px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      width: 100%;
+    }
+
+    input::placeholder { color: var(--muted); }
+
+    input:focus {
+      border-color: rgba(200,240,76,0.35);
+      box-shadow: 0 0 0 3px rgba(200,240,76,0.07);
+    }
+
+    .btn {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 13px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 4px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #0d0d0f;
+    }
+
+    .btn-primary:hover {
+      background: #d8ff5a;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(200,240,76,0.25);
+    }
+
+    .btn-primary:active { transform: translateY(0); }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .auth-msg {
+      font-size: 12px;
+      text-align: center;
+      padding: 8px 12px;
+      border-radius: 8px;
+      margin-top: 4px;
+      display: none;
+    }
+
+    .auth-msg.success { background: rgba(200,240,76,0.1); color: var(--accent); }
+    .auth-msg.error   { background: rgba(255,80,80,0.1); color: #ff7070; }
+
+    .chat-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .room-name {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+    }
+
+    .user-badge {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+      scrollbar-width: thin;
+      scrollbar-color: var(--surface2) transparent;
+    }
+
+    .messages::-webkit-scrollbar { width: 4px; }
+    .messages::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 4px; }
+
+    .msg {
+      max-width: 80%;
+      padding: 10px 13px;
+      border-radius: 12px;
+      font-size: 13.5px;
+      line-height: 1.55;
+      font-weight: 300;
+      word-break: break-word;
+      animation: msgIn 0.25s cubic-bezier(0.22,1,0.36,1) both;
+    }
+
+    @keyframes msgIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg.other {
+      background: var(--other-bg);
+      border: 1px solid var(--border);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+
+    .msg.self {
+      background: var(--self-bg);
+      border: 1px solid rgba(200,240,76,0.15);
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg-sender {
+      font-size: 10px;
+      font-family: var(--mono);
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .msg.self .msg-sender { text-align: right; color: rgba(200,240,76,0.5); }
+
+    .system-msg {
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+      font-family: var(--mono);
+      letter-spacing: 0.08em;
+      padding: 6px 0;
+    }
+
+    .input-bar {
+      padding: 14px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      flex-shrink: 0;
+    }
+
+    .msg-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      font-weight: 300;
+      padding: 11px 14px;
+      border-radius: 10px;
+      outline: none;
+      resize: none;
+      max-height: 90px;
+      transition: border-color 0.2s;
+      line-height: 1.4;
+    }
+
+    .msg-input:focus { border-color: rgba(200,240,76,0.3); }
+
+    .send-btn {
+      width: 42px; height: 42px;
+      border-radius: 10px;
+      background: var(--accent);
+      border: none;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+
+    .send-btn:hover {
+      background: #d8ff5a;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(200,240,76,0.3);
+    }
+
+    .send-btn:active { transform: scale(0.95); }
+    .send-btn svg { fill: #0d0d0f; }
+
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      gap: 8px;
+      font-size: 12px;
+      font-family: var(--mono);
+      letter-spacing: 0.1em;
+      text-align: center;
+    }
+
+    .empty-icon { font-size: 28px; opacity: 0.4; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+
+<div class="glow"></div>
+
+<div class="app">
+
+  <div class="header">
+    <span class="wordmark">Signal</span>
+    <div class="status-pill">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">offline</span>
+    </div>
+  </div>
+
+  <!-- AUTH PANEL -->
+  <div class="panel auth-panel active" id="authPanel">
+    <div class="tab-bar">
+      <div class="tab active" id="tabLogin" onclick="switchTab('login')">Log in</div>
+      <div class="tab" id="tabSignup" onclick="switchTab('signup')">Sign up</div>
+    </div>
+
+    <!-- Login -->
+    <div class="auth-form" id="loginForm">
+      <label>Username
+        <input type="text" id="login_user" placeholder="your_handle" autocomplete="username"/>
+      </label>
+      <label>Password
+        <input type="password" id="login_pass" placeholder="••••••••" autocomplete="current-password"/>
+      </label>
+      <button class="btn btn-primary" id="loginBtn" onclick="login()">Log in →</button>
+      <div class="auth-msg" id="loginMsg"></div>
+    </div>
+
+    <!-- Signup -->
+    <div class="auth-form" id="signupForm" style="display:none">
+      <label>Username
+        <input type="text" id="signup_user" placeholder="choose_a_handle" autocomplete="username"/>
+      </label>
+      <label>Password
+        <input type="password" id="signup_pass" placeholder="••••••••" autocomplete="new-password"/>
+      </label>
+      <button class="btn btn-primary" id="signupBtn" onclick="signup()">Create account →</button>
+      <div class="auth-msg" id="signupMsg"></div>
+    </div>
+  </div>
+
+  <!-- CHAT PANEL -->
+  <div class="panel" id="chatPanel" style="flex:1;min-height:0;display:none;flex-direction:column;">
+    <div class="chat-header">
+      <span class="room-name"># general</span>
+      <span class="user-badge" id="userBadge"></span>
+    </div>
+
+    <div class="messages" id="messages">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">💬</div>
+        <span>No messages yet.</span>
+        <span style="opacity:0.5">Be the first to say something.</span>
+      </div>
+    </div>
+
+    <div class="input-bar">
+      <textarea
+        class="msg-input"
+        id="messageInput"
+        placeholder="Say something…"
+        rows="1"
+        onkeydown="handleKey(event)"
+        oninput="autoResize(this)"
+      ></textarea>
+      <button class="send-btn" onclick="sendMessage()">
+        <svg width="16" height="16" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let socket, token, username;
+  let hasMessages = false;
+
+  // ── TABS ──
+  function switchTab(tab) {
+    const isLogin = tab === 'login';
+    document.getElementById('loginForm').style.display  = isLogin ? 'flex' : 'none';
+    document.getElementById('signupForm').style.display = isLogin ? 'none' : 'flex';
+    document.getElementById('tabLogin').classList.toggle('active', isLogin);
+    document.getElementById('tabSignup').classList.toggle('active', !isLogin);
+  }
+
+  // ── FEEDBACK MESSAGES ──
+  function showMsg(id, text, type) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className = `auth-msg ${type}`;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
+  }
+
+  // ── SIGNUP ──
+  async function signup() {
+    const btn  = document.getElementById('signupBtn');
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
+
+    const user = document.getElementById('signup_user').value.trim();
+    const pass = document.getElementById('signup_pass').value;
+
+    if (!user || !pass) {
+      showMsg('signupMsg', 'Fill in all fields.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Create account →';
+      return;
+    }
+
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/signup?username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}`, { method: 'POST' });
+      if (res.ok) {
+        showMsg('signupMsg', 'Account created! Log in now.', 'success');
+        setTimeout(() => switchTab('login'), 1500);
+      } else {
+        showMsg('signupMsg', 'Username taken or error.', 'error');
+      }
+    } catch {
+      showMsg('signupMsg', 'Could not reach server.', 'error');
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Create account →';
+  }
+
+  // ── LOGIN ──
+  async function login() {
+    const btn = document.getElementById('loginBtn');
+    btn.disabled = true;
+    btn.textContent = 'Logging in...';
+
+    username = document.getElementById('login_user').value.trim();
+    const pass = document.getElementById('login_pass').value;
+
+    if (!username || !pass) {
+      showMsg('loginMsg', 'Fill in all fields.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Log in →';
+      return;
+    }
+
+    if (socket && socket.readyState !== WebSocket.CLOSED) {
+      socket.close();
+    }
+
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(pass)}`, { method: 'POST' });
+
+      if (!res.ok) {
+        showMsg('loginMsg', 'Invalid credentials.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Log in →';
+        return;
+      }
+
+      const data = await res.json();
+      token = data.access_token;
+      connectSocket();
+
+    } catch {
+      showMsg('loginMsg', 'Could not reach server.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Log in →';
+    }
+  }
+
+  // ── WEBSOCKET ──
+  function connectSocket() {
+    const room = 'general';
+    socket = new WebSocket(`ws://127.0.0.1:8000/ws/${room}/${token}`);
+
+    socket.onopen = () => {
+      setStatus(true);
+      document.getElementById('authPanel').style.display = 'none';
+      document.getElementById('authPanel').classList.remove('active');
+      const cp = document.getElementById('chatPanel');
+      cp.style.display = 'flex';
+      cp.classList.add('active');
+      document.getElementById('userBadge').textContent = username;
+      document.getElementById('messageInput').focus();
+      addSystemMsg('You joined #general');
+      localStorage.setItem('token', token);
+      localStorage.setItem('username', username);
+
+      // re-enable login button in case user logs out later
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = false;
+      btn.textContent = 'Log in →';
+    };
+
+    socket.onmessage = (e) => {
+      const senderMatch = e.data.match(/^\[.*?\]\s+(\w+):\s/);
+      const sender = senderMatch ? senderMatch[1] : null;
+      if (sender !== username) {
+        addMessage(e.data, false);
+      }
+    };
+
+    socket.onclose = () => {
+    setStatus(false);
+    addSystemMsg('Disconnected from server.');
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+
+    };
+
+    socket.onerror = () => {
+      showMsg('loginMsg', 'WebSocket error.', 'error');
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = false;
+      btn.textContent = 'Log in →';
+    };
+  }
+
+  // ── STATUS ──
+  function setStatus(online) {
+    const dot  = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    dot.className    = 'dot' + (online ? ' online' : '');
+    text.textContent = online ? 'connected' : 'offline';
+  }
+
+  // ── ADD MESSAGE ──
+  function addMessage(text, isSelf = false) {
+    const emptyState = document.getElementById('emptyState');
+    if (emptyState) emptyState.remove();
+
+    const box  = document.getElementById('messages');
+    const wrap = document.createElement('div');
+    wrap.className = `msg ${isSelf ? 'self' : 'other'}`;
+
+    const sender = document.createElement('div');
+    sender.className = 'msg-sender';
+    sender.textContent = isSelf ? 'you' : extractSender(text);
+
+    const body = document.createElement('div');
+    body.textContent = isSelf ? text : stripSender(text);
+
+    wrap.appendChild(sender);
+    wrap.appendChild(body);
+    box.appendChild(wrap);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function addSystemMsg(text) {
+    const box = document.getElementById('messages');
+    const el  = document.createElement('div');
+    el.className = 'system-msg';
+    el.textContent = text;
+    box.appendChild(el);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  // ── PARSE SERVER MESSAGE FORMAT: "[general] username: message" ──
+  function extractSender(text) {
+    const m = text.match(/^\[.*?\]\s+(\w+):\s/);
+    return m ? m[1] : 'user';
+  }
+
+  function stripSender(text) {
+    return text.replace(/^\[.*?\]\s+\w+:\s/, '');
+  }
+
+  // ── SEND ──
+  function sendMessage() {
+    const input = document.getElementById('messageInput');
+    const msg   = input.value.trim();
+    if (!msg || !socket || socket.readyState !== WebSocket.OPEN) return;
+
+    socket.send(msg);
+    addMessage(msg, true);
+    input.value = '';
+    input.style.height = 'auto';
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  window.onload = () => {
+    const savedToken = localStorage.getItem('token');
+    const savedUser  = localStorage.getItem('username');
+    if (savedToken && savedUser) {
+        token    = savedToken;
+        username = savedUser;
+        connectSocket();
+    }
+  }
+</script>
+</body>
+</html>
